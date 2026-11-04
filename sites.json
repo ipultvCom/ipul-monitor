@@ -1,0 +1,15 @@
+{
+  "_ayuda": "Lista de sitios a vigilar. expectIp: IP a la que debe apuntar el DNS (null = no revisar). keyword: texto que debe aparecer en la página final (después de redirecciones). path: ruta a revisar (por defecto /).",
+  "sslMinDays": 14,
+  "sites": [
+    { "host": "ipul.tv",           "expectIp": "2.25.191.196", "keyword": "Conectando tu Ser" },
+    { "host": "www.ipul.tv",       "expectIp": "2.25.191.196", "keyword": "Conectando tu Ser" },
+    { "host": "play.ipul.tv",      "expectIp": "2.25.191.196", "keyword": "En Vivo y OnDemand" },
+    { "host": "api.ipul.tv",       "expectIp": "2.25.191.196", "keyword": "\"id\"", "path": "/wp-json/wp/v2/posts?per_page=1&_fields=id" },
+    { "host": "panel.ipul.tv",     "expectIp": "2.25.191.196", "keyword": null },
+    { "host": "distrito2.ipul.us", "expectIp": "2.25.191.196", "keyword": "IPUL Distrito 2" },
+    { "host": "ipulrecursos.us",   "expectIp": "2.25.191.196", "keyword": "IPUL Recursos" },
+    { "host": "sigi.ipul.us",      "expectIp": "2.25.191.196", "keyword": "SIGI" },
+    { "host": "ipul.us",           "expectIp": null,           "keyword": "Iglesia Pentecostal Unida Latinoamericana" }
+  ]
+}
