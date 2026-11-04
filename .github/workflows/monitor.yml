@@ -4,6 +4,11 @@ on:
   schedule:
     - cron: "*/30 * * * *"   # cada 30 minutos (hora UTC)
   workflow_dispatch:         # permite ejecutarlo a mano desde la pestaña Actions
+    inputs:
+      probar_telegram:
+        description: "Enviar un mensaje de prueba a Telegram aunque todo esté bien"
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -22,3 +27,4 @@ jobs:
         env:
           TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
           TELEGRAM_CHAT_ID: ${{ secrets.TELEGRAM_CHAT_ID }}
+          TELEGRAM_TEST: ${{ inputs.probar_telegram }}

@@ -83,18 +83,27 @@ if (process.env.GITHUB_STEP_SUMMARY) {
 }
 
 // Aviso opcional por Telegram (solo si existen los secretos)
-const { TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID } = process.env;
-if (failed.length && TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID) {
-  const text = `⚠️ Problema en ${failed.length} sitio(s) IPUL\n\n` +
-    failed.map((r) => `❌ ${r.host}\n- ${r.problems.join("\n- ")}`).join("\n\n");
+const { TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_TEST } = process.env;
+const sendTest = TELEGRAM_TEST === "true";
+if ((failed.length || sendTest) && TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID) {
+  const text = failed.length
+    ? `⚠️ Problema en ${failed.length} sitio(s) IPUL\n\n` +
+      failed.map((r) => `❌ ${r.host}\n- ${r.problems.join("\n- ")}`).join("\n\n")
+    : `🧪 Prueba del monitor IPUL: todo bien\n\n${report}`;
   try {
-    await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
+    const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ chat_id: TELEGRAM_CHAT_ID, text }),
     });
+    const data = await res.json();
+    console.log(data.ok ? "Aviso enviado a Telegram." : `Telegram respondió con error: ${data.description}`);
+    if (sendTest && !data.ok) process.exitCode = 1;
   } catch (e) { console.log("No se pudo enviar el aviso a Telegram:", e.message); }
+} else if (sendTest) {
+  console.log("Prueba de Telegram: faltan los secretos TELEGRAM_BOT_TOKEN y/o TELEGRAM_CHAT_ID.");
+  process.exitCode = 1;
 }
 
 // Si algo falla, la ejecución termina en error y GitHub envía el correo de aviso.
-process.exit(failed.length ? 1 : 0);
+if (failed.length) process.exitCode = 1;
