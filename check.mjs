@@ -1,6 +1,6 @@
 // Monitor de sitios IPUL: revisa DNS, que la página cargue con el texto correcto y los días de SSL.
 // Sin dependencias: requiere Node 18+. Uso: node check.mjs
-import { readFile, appendFile } from "node:fs/promises";
+import { readFile, appendFile, writeFile } from "node:fs/promises";
 import { Resolver } from "node:dns/promises";
 import tls from "node:tls";
 
@@ -83,13 +83,34 @@ if (process.env.GITHUB_STEP_SUMMARY) {
 }
 
 // Aviso opcional por Telegram (solo si existen los secretos)
-const { TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_TEST } = process.env;
+// Con STATE_FILE (uso en el VPS) solo avisa cuando cambia algo, recuerda cada 6 h si sigue
+// fallando y avisa cuando se recupera. Sin STATE_FILE (GitHub) avisa en cada ejecución con fallos.
+const { TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_TEST, STATE_FILE, MONITOR_NAME } = process.env;
 const sendTest = TELEGRAM_TEST === "true";
-if ((failed.length || sendTest) && TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID) {
-  const text = failed.length
-    ? `⚠️ Problema en ${failed.length} sitio(s) IPUL\n\n` +
-      failed.map((r) => `❌ ${r.host}\n- ${r.problems.join("\n- ")}`).join("\n\n")
-    : `🧪 Prueba del monitor IPUL: todo bien\n\n${report}`;
+const origin = MONITOR_NAME ? ` [${MONITOR_NAME}]` : "";
+const signature = JSON.stringify(failed.map((r) => [r.host, r.problems.map((p) => p.replace(/\d+ días/, "N días"))]));
+let prev = { signature: "[]", lastAlert: 0 };
+if (STATE_FILE) {
+  try { prev = JSON.parse(await readFile(STATE_FILE, "utf8")); } catch { /* primera ejecución */ }
+}
+const REMIND_MS = 6 * 3600 * 1000;
+let reason = null;
+if (sendTest) reason = "test";
+else if (!STATE_FILE) reason = failed.length ? "fail" : null;
+else if (failed.length && (signature !== prev.signature || Date.now() - prev.lastAlert > REMIND_MS)) reason = "fail";
+else if (!failed.length && prev.signature !== "[]") reason = "recovered";
+console.log(`Aviso a Telegram: ${reason ?? "no hace falta"}`);
+
+if (reason && TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID) {
+  const text =
+    reason === "fail"
+      ? `⚠️ Problema en ${failed.length} sitio(s) IPUL${origin}\n\n` +
+        failed.map((r) => `❌ ${r.host}\n- ${r.problems.join("\n- ")}`).join("\n\n")
+      : reason === "recovered"
+        ? `✅ Todos los sitios IPUL volvieron a la normalidad${origin}\n\n${report}`
+        : failed.length
+          ? `🧪 Prueba del monitor IPUL${origin}: hay problemas\n\n${report}`
+          : `🧪 Prueba del monitor IPUL${origin}: todo bien\n\n${report}`;
   try {
     const res = await fetch(`https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage`, {
       method: "POST",
@@ -99,10 +120,15 @@ if ((failed.length || sendTest) && TELEGRAM_BOT_TOKEN && TELEGRAM_CHAT_ID) {
     const data = await res.json();
     console.log(data.ok ? "Aviso enviado a Telegram." : `Telegram respondió con error: ${data.description}`);
     if (sendTest && !data.ok) process.exitCode = 1;
+    if (data.ok && reason === "fail") prev.lastAlert = Date.now();
   } catch (e) { console.log("No se pudo enviar el aviso a Telegram:", e.message); }
 } else if (sendTest) {
   console.log("Prueba de Telegram: faltan los secretos TELEGRAM_BOT_TOKEN y/o TELEGRAM_CHAT_ID.");
   process.exitCode = 1;
+}
+
+if (STATE_FILE && !sendTest) {
+  await writeFile(STATE_FILE, JSON.stringify({ signature, lastAlert: failed.length ? prev.lastAlert : 0, checkedAt: new Date().toISOString() }));
 }
 
 // Si algo falla, la ejecución termina en error y GitHub envía el correo de aviso.
