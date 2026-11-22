@@ -1,6 +1,7 @@
 // Monitor de sitios IPUL: revisa DNS, que la página cargue con el texto correcto y los días de SSL.
 // Sin dependencias: requiere Node 18+. Uso: node check.mjs
 import { readFile, appendFile, writeFile } from "node:fs/promises";
+import { readFileSync } from "node:fs";
 import { Resolver } from "node:dns/promises";
 import tls from "node:tls";
 
@@ -66,11 +67,25 @@ const results = await Promise.all(config.sites.map(async (site) => {
   return { host: site.host, problems, sslDays: site._sslDays };
 }));
 
+// Respaldos locales: el script deja "OK AAAA-MM-DD" o "FALLO ..." en un archivo de estado.
+function checkRespaldo(r) {
+  let txt = "";
+  try { txt = readFileSync(r.estado, "utf8").trim(); } catch { return [`Respaldo: no existe ${r.estado}`]; }
+  const m = txt.match(/^OK ([0-9]{4}-[0-9]{2}-[0-9]{2})/);
+  if (!m) return [`Respaldo: ${txt}`];
+  const horas = (Date.now() - Date.parse(m[1] + "T23:59:59Z")) / 3600000;
+  return horas > (r.maxHoras ?? 36) ? [`Respaldo: el último correcto es del ${m[1]}`] : [];
+}
+// Solo en el VPS (con STATE_FILE): en GitHub esos archivos no existen y daría falsas alarmas.
+if (process.env.STATE_FILE) {
+  for (const r of config.respaldos ?? []) results.push({ host: r.nombre, problems: checkRespaldo(r), sslDays: "-" });
+}
+
 const failed = results.filter((r) => r.problems.length);
 const lines = results.map((r) =>
   r.problems.length
     ? `❌ ${r.host}\n   - ${r.problems.join("\n   - ")}`
-    : `✅ ${r.host}  (SSL: ${r.sslDays ?? "?"} días)`
+    : r.sslDays === "-" ? `✅ ${r.host}` : `✅ ${r.host}  (SSL: ${r.sslDays ?? "?"} días)`
 );
 const report = lines.join("\n");
 console.log(report);
