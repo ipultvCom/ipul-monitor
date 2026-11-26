@@ -59,6 +59,11 @@
       "nombre": "Respaldo diario de SIGI",
       "estado": "/root/sigi-respaldos/estado",
       "maxHoras": 36
+    },
+    {
+      "nombre": "Respaldo diario del VPS nuevo (ipulrecursos, distrito2)",
+      "estado": "/root/ipul-respaldos-vps-nuevo/estado",
+      "maxHoras": 36
     }
   ]
 }
